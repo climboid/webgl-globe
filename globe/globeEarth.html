@@ -1,0 +1,121 @@
+<html lang="en">
+<script type="text/javascript" async="" src="http://www.google-analytics.com/ga.js"></script>
+<script>
+(function main() {
+    // Create enabled event
+    function fireEnabledEvent() {
+        // If gli exists, then we are already present and shouldn't do anything
+        if (!window.gli) {
+            setTimeout(function () {
+                var enabledEvent = document.createEvent("Event");
+                enabledEvent.initEvent("WebGLEnabledEvent", true, true);
+                document.dispatchEvent(enabledEvent);
+            }, 0);
+        } else {
+            //console.log("WebGL Inspector already embedded on the page - disabling extension");
+        }
+    };
+
+    // Grab the path root from the extension
+    document.addEventListener("WebGLInspectorReadyEvent", function (e) {
+        var pathElement = document.getElementById("__webglpathroot");
+        if (window["gliloader"]) {
+            gliloader.pathRoot = pathElement.innerText;
+        } else {
+            // TODO: more?
+            window.gliCssUrl = pathElement.innerText + "gli.all.css";
+        }
+    }, false);
+
+    // Rewrite getContext to snoop for webgl
+    var originalGetContext = HTMLCanvasElement.prototype.getContext;
+    if (!HTMLCanvasElement.prototype.getContextRaw) {
+        HTMLCanvasElement.prototype.getContextRaw = originalGetContext;
+    }
+    HTMLCanvasElement.prototype.getContext = function () {
+        var ignoreCanvas = this.internalInspectorSurface;
+        if (ignoreCanvas) {
+            return originalGetContext.apply(this, arguments);
+        }
+
+        var result = originalGetContext.apply(this, arguments);
+        if (result == null) {
+            return null;
+        }
+
+        var contextNames = ["moz-webgl", "webkit-3d", "experimental-webgl", "webgl", "3d"];
+        var requestingWebGL = contextNames.indexOf(arguments[0]) != -1;
+        if (requestingWebGL) {
+            // Page is requesting a WebGL context!
+            fireEnabledEvent(this);
+            
+            // If we are injected, inspect this context
+            if (window.gli) {
+                if (gli.host.inspectContext) {
+                    // TODO: pull options from extension
+                    result = gli.host.inspectContext(this, result);
+                    var hostUI = new gli.host.HostUI(result);
+                    result.hostUI = hostUI; // just so we can access it later for debugging
+                }
+            }
+        }
+
+        return result;
+    };
+})();</script>
+<head> 
+  <title>1.USA.gov data (bit.ly short URLS) on WebGL globe</title> 
+  <meta charset="utf-8"> 
+  <link rel="stylesheet" type="text/css" href="earth/stylesEarth.css" /> 
+</head> 
+<body> 
+  <div id="title">
+bubble data
+  </div>
+<div id="container" style="">
+  <canvas width="1440" height="188" style="position: absolute; "></canvas>
+</div>
+<div id="info">
+  The <a href="http://www.chromeexperiments.com/globe">WebGL Globe</a> is an
+  open platform for visualizing geographic data. <span class="bull">•</span> <a href="http://code.google.com/p/webgl-globe/">Get
+  the code</a> <span class="bull">•</span> Thanks to the Google Data Arts Team
+</div>
+<script type="text/javascript" src="third-party/Three/ThreeWebGL.js"></script>
+<script type="text/javascript" src="third-party/Three/ThreeExtras.js"></script>
+<script type="text/javascript" src="third-party/Three/RequestAnimationFrame.js"></script>
+<script type="text/javascript" src="third-party/Three/Detector.js"></script>
+<script type="text/javascript" src="earth/globe.js"></script>
+
+
+
+
+<script type="text/javascript">
+
+  var globe = DAT.Globe(document.getElementById('container'), function(label) {
+    return new THREE.Color([
+      0xd9d9d9, 0xb6b4b5, 0x9966cc, 0x15adff, 0x3e66a3,
+      0x216288, 0xff7e7e, 0xff1f13, 0xc0120b, 0x5a1301, 0xffcc02,
+      0xedb113, 0x9fce66, 0x0c9a39,
+      0xfe9872, 0x7f3f98, 0xf26522, 0x2bb673, 0xd7df23,
+      0xe6b23a, 0x7ed3f7][label]);
+  });
+
+  xhr = new XMLHttpRequest();
+  xhr.open('GET', 'earth/for_webgl.json', true);
+  xhr.onreadystatechange = function(e) {
+    if (xhr.readyState === 4) {
+      if (xhr.status === 200) {
+        var data = JSON.parse(xhr.responseText);
+        window.data = data;
+        globe.addData(data, {format: 'legend'});
+        globe.createPoints();
+        globe.animate();
+      }
+    }
+  };
+  xhr.send(null);
+
+</script>
+
+</body>
+</html>
